@@ -124,6 +124,7 @@ func (h *Handler) Get(c droplet.Context) (interface{}, error) {
 	}
 	ssl.Key = ""
 	ssl.Keys = nil
+	ssl.ValidityStart, ssl.ValidityEnd = getCertValidTime(ssl.Cert)
 
 	return ssl, nil
 }
@@ -200,6 +201,7 @@ func (h *Handler) List(c droplet.Context) (interface{}, error) {
 		_ = utils.ObjectClone(item, ssl)
 		ssl.Key = ""
 		ssl.Keys = nil
+		ssl.ValidityStart, ssl.ValidityEnd = getCertValidTime(ssl.Cert)
 		list = append(list, ssl)
 	}
 	if list == nil {
@@ -383,8 +385,8 @@ func ParseCert(crt, key string) (*entity.SSL, error) {
 
 	ssl.Snis = snis
 	ssl.Key = key
-	ssl.ValidityStart = x509Cert.NotBefore.Unix()
-	ssl.ValidityEnd = x509Cert.NotAfter.Unix()
+	// ssl.ValidityStart = x509Cert.NotBefore.Unix()
+	// ssl.ValidityEnd = x509Cert.NotAfter.Unix()
 	ssl.Cert = crt
 
 	return &ssl, nil
@@ -423,7 +425,7 @@ func (h *Handler) Validate(c droplet.Context) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	ssl.ValidityStart, ssl.ValidityEnd = getCertValidTime(ssl.Cert)
 	return ssl, nil
 }
 
@@ -495,4 +497,18 @@ func (h *Handler) Exist(c droplet.Context) (interface{}, error) {
 	}
 
 	return nil, nil
+}
+
+func getCertValidTime(crt string) (int64, int64) {
+	certDERBlock, _ := pem.Decode([]byte(crt))
+	if certDERBlock == nil {
+		return 0, 0
+	}
+
+	x509Cert, err := x509.ParseCertificate(certDERBlock.Bytes)
+
+	if err != nil {
+		return 0, 0
+	}
+	return x509Cert.NotBefore.Unix(), x509Cert.NotAfter.Unix()
 }
